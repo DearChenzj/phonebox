@@ -34,6 +34,9 @@ class Dictation(private val activity: Activity, private val js: (String) -> Unit
 
     private data class Request(val id: Int, val lang: String, val offline: Boolean)
 
+    // Called on the main thread before playing a robot notification.
+    fun isListening(): Boolean = recognizer != null || waitingFor != null
+
     fun available(): Boolean = SpeechRecognizer.isRecognitionAvailable(activity)
 
     /** Starts a session and returns its id; asks for the microphone first if needed. [lang] is BCP 47 or "". */

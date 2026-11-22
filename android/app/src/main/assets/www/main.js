@@ -14,6 +14,8 @@ import './widgets/photos.js';
 import './widgets/controls.js';
 import './widgets/console.js';
 import './widgets/dictate.js';
+import { ROBOT_PAGE } from './widgets/robot.js';
+import { speechSessions } from './speech-sessions.js';
 import './widgets/camera.js';
 import './widgets/spectrum.js';
 
@@ -35,7 +37,7 @@ export const $ = (id) => document.getElementById(id);
 // The native bridge (window.Android) is in every frame, sandboxed widgets included, so each call carries a key that only
 // the panel's own frames receive (MainActivity.bridgeKey). This wrapper adds it.
 const BRIDGE = ['battery', 'buzz', 'notificationTone', 'haptic', 'is24Hour', 'pcs', 'selectPc', 'forgetPc', 'setBrightness', 'setHomeScreen', 'setOrientation',
-  'setPinned', 'setVolumeKeys', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening',
+  'setPinned', 'setVolumeKeys', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening', 'robotNotify',
   'trackpad', 'codexVoiceStart', 'codexVoiceStop', 'desktopAudioStart', 'desktopAudioStop'];
 export const bridge = typeof Android === 'undefined' ? null : Object.fromEntries(BRIDGE.filter((m) => typeof Android[m] === 'function')
   .map((m) => [m, (...args) => Android[m](window.__phoneboxKey || '', ...args)]));
@@ -884,7 +886,15 @@ export function handleNotify(d) {
   if (d.wake && nightOn) { wakeUntil = Date.now() + 30_000; setNight(false); }
   undim();
   toast(d.text || '', level, d.title || '', d.seconds || 5);
-  try { if (!nightOn) bridge?.notificationTone?.(); } catch (_) {}
+  if (!nightOn && !PREVIEW) {
+    const robot = mounted.find((m) => m.ctx.page === ROBOT_PAGE);
+    robot?.inst.notify?.(level);
+    try {
+      if (bridge?.robotNotify) {
+        if (!speechSessions.size) bridge.robotNotify(level);
+      } else bridge?.notificationTone?.();
+    } catch (_) {}
+  }
   if (d.vibrate !== false) buzz(level === 'err' ? '0,90,90,90,90,160' : '0,70,110,70');
   D.notes.unshift({ title: d.title || '', text: d.text || '', level: d.level || 'info', at: Date.now() });
   D.notes = D.notes.slice(0, 30);
@@ -1023,7 +1033,7 @@ export function handleEvent(e) {
   else if (e.kind === 'reload') location.reload();
 }
 
-export const WIDGET_ICONS = { camera: '📹', dictate: '🎙️', spectrum: '📶', 'app-console': '🎛️',discord: '💬', rules: '⚡', chargecare: '🔋', nextup: '⏭️', moon: '🌙', wordclock: '🔤', clock: '🕒', weather: '⛅', forecast: '🌦️', media: '🎵', stat: '📈', gauge: '⏲️', chart: '📊', meters: '💾', gpu: '🎮', quotas: '✳️', sessions: '🤖',
+export const WIDGET_ICONS = { 'robot-face': '🤖', camera: '📹', dictate: '🎙️', spectrum: '📶', 'app-console': '🎛️',discord: '💬', rules: '⚡', chargecare: '🔋', nextup: '⏭️', moon: '🌙', wordclock: '🔤', clock: '🕒', weather: '⛅', forecast: '🌦️', media: '🎵', stat: '📈', gauge: '⏲️', chart: '📊', meters: '💾', gpu: '🎮', quotas: '✳️', sessions: '🤖',
   github: '🐙', processes: '⚙️', shortcuts: '🎛️', button: '🔘', worldclock: '🌍', calendar: '📅', pomodoro: '🍅', countdown: '⏳', note: '📝', command: '💻',
   push: '📡', inbox: '📬', label: '🔤', analog: '🕰️', progress: '📆', stopwatch: '⏱️', timer: '⏲️', counter: '🔢', breathe: '🫁', quote: '💬',
   checklist: '✅', battery: '🔋', topprocs: '🔥', quotaring: '🎯', volume: '🔊', sun: '🌅', air: '🍃', hackernews: '📰', feeds: '🗞️', photos: '🖼️', exchange: '💱', crypto: '🪙', image: '🖼️', pcswitch: '🖥️' };
@@ -1053,7 +1063,9 @@ export function portraitLayout(widgets) {
 
 export function buildLayout() {
   const enabled = (cfg.pages || []).filter((p) => p.enabled !== false && Array.isArray(p.widgets));
-  const next = enabled.length ? enabled : FALLBACK_PAGES;
+  const configured = enabled.length ? enabled : FALLBACK_PAGES;
+  // Keep agent-configured page numbers stable. The Android-only home goes after them.
+  const next = !PREVIEW && bridge?.robotNotify ? [...configured, ROBOT_PAGE] : configured;
   const portrait = isPortrait();
   const h12 = hour12();
   // the active language belongs in the key: the widgets render their texts once, when they are created
@@ -1070,7 +1082,7 @@ export function buildLayout() {
   pages.forEach((p, pi) => {
     const grid = h('div', 'grid');
     const pageAppearance = PhoneBoxAppearance.resolve(cfg.display?.appearance, p.appearance);
-    const pl = portrait ? portraitLayout(p.widgets) : null;
+    const pl = portrait && p !== ROBOT_PAGE ? portraitLayout(p.widgets) : null;
     if (pl) { grid.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))'; grid.style.gridTemplateRows = `repeat(${pl.rows}, minmax(0, 1fr))`; }
     for (const w of p.widgets) {
       const def = W[w.type];
@@ -1091,7 +1103,8 @@ export function buildLayout() {
     sec.dataset.id = p.id;
     pager.appendChild(sec);
   });
-  const idx = Math.max(0, pages.findIndex((p) => p.id === prevId));
+  const previous = pages.findIndex((p) => p.id === prevId);
+  const idx = previous >= 0 ? previous : Math.max(0, pages.indexOf(ROBOT_PAGE));
   if (pagePaused && (pages.length < 2 || (pausedPageId && pages[idx]?.id !== pausedPageId))) {
     pagePaused = false;
     pausedPageId = null;
@@ -1278,10 +1291,18 @@ export function gotoProcesses(sortTarget = 'cpu') {
 }
 
 export const resolvePage = (ref) => {
-  const n = typeof ref === 'number' ? ref - 1 : /^\d+$/.test(String(ref)) ? +ref - 1 : pages.findIndex((p) => p.id === ref || p.title.toLowerCase() === String(ref).toLowerCase());
-  return n >= 0 && n < pages.length ? n : -1;
+  if (typeof ref === 'number' || /^\d+$/.test(String(ref))) {
+    const n = Number(ref) - 1;
+    return Number.isInteger(n) && pages[n] && pages[n] !== ROBOT_PAGE ? n : -1;
+  }
+  return pages.findIndex((p) => p.id === ref || p.title.toLowerCase() === String(ref).toLowerCase());
 };
-export const homeIndex = () => { const id = cfg.display?.homePage; const i = id ? pages.findIndex((p) => p.id === id) : -1; return i >= 0 ? i : 0; };
+export const homeIndex = () => {
+  const robot = pages.indexOf(ROBOT_PAGE);
+  if (robot >= 0) return robot;
+  const i = pages.findIndex((p) => p.id === cfg.display?.homePage);
+  return i >= 0 ? i : 0;
+};
 
 // ================================================================= calm page switching
 // Rules, webhooks and the idle return ask for a page instead of jumping to it. A request waits while you are using the

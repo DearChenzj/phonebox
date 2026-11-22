@@ -1,16 +1,12 @@
 import { API, PANEL_HEADERS, bridge, curPage, h, haptic, icon, pages, t, toast } from '../main.js';
 import { W } from '../registry.js';
+import { speechSessions as sessions } from '../speech-sessions.js';
 
 // ---------------------------------------------------------------- dictation
 // Tap the microphone, speak, and the text is typed into the app in front on the PC. The phone's own speech recognizer
 // (Android, through the app's bridge) turns speech into text; the agent types it, and only when this widget's own
 // "Type the text on the computer" option is on. The microphone is open only while the button shows it, at most a
 // minute, and never while the widget is out of sight. Nothing is stored.
-
-// Each recognition session has an id from the bridge; its events go to the widget that started it, so one widget's
-// session never ends or answers another's.
-const sessions = new Map();
-window.onAndroidSpeech = (kind, text, id) => { const handler = sessions.get(id); if (handler) handler(kind, text); };
 
 const MAX_CHARS = 1000; // Dictation.MaxChars on the agent
 

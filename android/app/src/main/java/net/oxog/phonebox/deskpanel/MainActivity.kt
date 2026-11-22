@@ -24,6 +24,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.speech.tts.TextToSpeech
 import android.text.format.DateFormat
 import android.util.Log
 import android.view.KeyEvent
@@ -46,6 +47,7 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -68,6 +70,8 @@ class MainActivity : Activity(), SensorEventListener {
     private var desktopAudioPlaying = false
     private lateinit var stream: AgentStream
     private var notificationPlayer: MediaPlayer? = null
+    private var robotSpeech: TextToSpeech? = null
+    private var robotSpeechReady = false
     private var voicePermission: PermissionRequest? = null
     private val voiceSignaling = Executors.newSingleThreadExecutor()
     private val voiceLock = Any()
@@ -99,6 +103,7 @@ class MainActivity : Activity(), SensorEventListener {
         web = WebView(this)
         web.setBackgroundColor(0xFF000000.toInt())
         setContentView(web)
+        initRobotSpeech()
 
         with(web.settings) {
             javaScriptEnabled = true
@@ -304,6 +309,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onPause() {
         resumed = false
+        robotSpeech?.stop()
         if (!desktopAudioPermissionPending) desktopAudio.stop()
         dictation.cancel(0) // the microphone is never left open behind another app or a dark screen
         if (stopVoiceCall()) web.evaluateJavascript("window.onCodexVoicePause && window.onCodexVoicePause()", null)
@@ -326,10 +332,63 @@ class MainActivity : Activity(), SensorEventListener {
         stream.stop()
         link.trackpadSocket.close()
         link.close()
+        robotSpeech?.shutdown()
+        robotSpeech = null
         releaseNotificationPlayer()
         (web.parent as? ViewGroup)?.removeView(web) // a WebView must be detached before destroy()
         web.destroy()
         super.onDestroy()
+    }
+
+    private fun initRobotSpeech() {
+        robotSpeech = TextToSpeech(this) { status ->
+            // The callback can run before the constructor returns, including when no engine is installed.
+            web.post {
+                val speech = robotSpeech ?: return@post
+                if (destroyed || status != TextToSpeech.SUCCESS) return@post
+                robotSpeechReady = runCatching {
+                    speech.setLanguage(Locale.SIMPLIFIED_CHINESE) >= TextToSpeech.LANG_AVAILABLE &&
+                        speech.setAudioAttributes(AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()) == TextToSpeech.SUCCESS
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    private fun notificationAudioAllowed(): Boolean {
+        if (!resumed || destroyed) return false
+        val audio = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        return audio.ringerMode == AudioManager.RINGER_MODE_NORMAL
+    }
+
+    private fun playNotificationTone() {
+        releaseNotificationPlayer()
+        try {
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val player = MediaPlayer.create(this@MainActivity, R.raw.notification_tone, attributes, 0)
+                ?: return
+            notificationPlayer = player
+            player.setOnCompletionListener {
+                if (it === notificationPlayer) {
+                    releaseNotificationPlayer()
+                    if (BuildConfig.DEBUG) Log.d("PhoneBoxAudio", "Notification tone completed")
+                }
+            }
+            player.setOnErrorListener { failedPlayer, what, extra ->
+                if (failedPlayer === notificationPlayer) releaseNotificationPlayer()
+                Log.w("PhoneBoxAudio", "Notification tone failed ($what, $extra)")
+                true
+            }
+            player.start()
+        } catch (e: RuntimeException) {
+            releaseNotificationPlayer()
+            Log.w("PhoneBoxAudio", "Could not play notification tone", e)
+        }
     }
 
     private fun releaseNotificationPlayer() {
@@ -494,35 +553,27 @@ class MainActivity : Activity(), SensorEventListener {
         @JavascriptInterface
         fun notificationTone(key: String) {
             if (!ok(key)) return
+            runOnUiThread { if (notificationAudioAllowed()) playNotificationTone() }
+        }
+
+        @JavascriptInterface
+        fun robotNotify(key: String, level: String) {
+            if (!ok(key)) return
+            val phrase = when (level) {
+                "ok" -> "收到成功通知"
+                "warn" -> "收到警告通知"
+                "err" -> "收到错误通知"
+                "" -> "收到新通知"
+                else -> return
+            }
             runOnUiThread {
-                if (!resumed || destroyed) return@runOnUiThread
-                val audio = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return@runOnUiThread
-                if (audio.ringerMode != AudioManager.RINGER_MODE_NORMAL) return@runOnUiThread
+                if (!notificationAudioAllowed() || dictation.isListening() || desktopAudioPlaying ||
+                    synchronized(voiceLock) { voiceCallId != null }) return@runOnUiThread
                 releaseNotificationPlayer()
-                try {
-                    val attributes = AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                    val player = MediaPlayer.create(this@MainActivity, R.raw.notification_tone, attributes, 0)
-                        ?: return@runOnUiThread
-                    notificationPlayer = player
-                    player.setOnCompletionListener {
-                        if (it === notificationPlayer) {
-                            releaseNotificationPlayer()
-                            if (BuildConfig.DEBUG) Log.d("PhoneBoxAudio", "Notification tone completed")
-                        }
-                    }
-                    player.setOnErrorListener { failedPlayer, what, extra ->
-                        if (failedPlayer === notificationPlayer) releaseNotificationPlayer()
-                        Log.w("PhoneBoxAudio", "Notification tone failed ($what, $extra)")
-                        true
-                    }
-                    player.start()
-                } catch (e: RuntimeException) {
-                    releaseNotificationPlayer()
-                    Log.w("PhoneBoxAudio", "Could not play notification tone", e)
-                }
+                val spoken = robotSpeechReady && runCatching {
+                    robotSpeech?.speak(phrase, TextToSpeech.QUEUE_FLUSH, null, "robot-notification") == TextToSpeech.SUCCESS
+                }.getOrDefault(false)
+                if (!spoken) playNotificationTone()
             }
         }
 
@@ -664,8 +715,14 @@ class MainActivity : Activity(), SensorEventListener {
          * through window.onAndroidSpeech(kind, text, id).
          */
         @JavascriptInterface
-        fun listen(key: String, lang: String, offline: Boolean): Int =
-            if (!ok(key)) 0 else dictation.start(lang.take(20).filter { it.isLetterOrDigit() || it == '-' }, offline)
+        fun listen(key: String, lang: String, offline: Boolean): Int {
+            if (!ok(key)) return 0
+            runOnUiThread {
+                robotSpeech?.stop()
+                releaseNotificationPlayer()
+            }
+            return dictation.start(lang.take(20).filter { it.isLetterOrDigit() || it == '-' }, offline)
+        }
 
         @JavascriptInterface
         fun stopListening(key: String, id: Int) { if (ok(key) && id > 0) dictation.stop(id) }
