@@ -69,6 +69,8 @@ builder.Services.AddSingleton<ApprovalStore>();
 builder.Services.AddSingleton<HomeAssistant>();
 builder.Services.AddSingleton<AppConsole>();
 builder.Services.AddSingleton<Dictation>();
+builder.Services.AddSingleton<CodexVoice>();
+builder.Services.AddSingleton<DesktopAudio>();
 builder.Services.AddSingleton<SpectrumAnalyzer>();
 AddMonitor<SystemMonitor>(builder.Services);
 AddMonitor<MediaMonitor>(builder.Services);
@@ -225,6 +227,27 @@ app.Use(async (ctx, next) =>
 });
 
 app.Map("/api/trackpad", TrackpadHandler.HandleEndpoint);
+app.MapGet("/api/desktop-audio", (DesktopAudio audio) => Results.Json(new { enabled = audio.Enabled }));
+app.MapGet("/api/desktop-audio/socket", (HttpContext context, DesktopAudio audio) => audio.ConnectAsync(context));
+app.MapGet("/api/codex-voice", (CodexVoice voice) => Results.Json(new { enabled = voice.Enabled }));
+app.MapGet("/api/codex-voice/threads", (string? cursor, HttpContext ctx, CodexVoice voice) =>
+    voice.Enabled
+        ? voice.ListAsync(ctx.Request.Headers["X-PhoneBox-Device"].ToString(), cursor, ctx.RequestAborted)
+        : Task.FromResult<IResult>(Results.NotFound()));
+app.MapPost("/api/codex-voice/start", async (HttpContext ctx, CodexVoice voice) =>
+{
+    if (!voice.Enabled) return Results.NotFound();
+    var limit = ctx.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+    if (limit is not null) limit.MaxRequestBodySize = 32 * 1024;
+    var request = await ctx.Request.ReadFromJsonAsync<CodexVoice.Offer>(ctx.RequestAborted);
+    return await voice.StartAsync(ctx.Request.Headers["X-PhoneBox-Device"].ToString(), request,
+        ctx.Request.IsHttps, ctx.RequestAborted);
+});
+app.MapPost("/api/codex-voice/stop", (Guid id, HttpRequest request, CodexVoice voice) =>
+{
+    voice.Stop(request.Headers["X-PhoneBox-Device"].ToString(), id);
+    return Results.NoContent();
+});
 
 // ---------------------------------------------------------------- Wi-Fi pairing (local / USB only)
 // The phone calls this through the USB tunnel and stores everything it needs to connect over Wi-Fi.

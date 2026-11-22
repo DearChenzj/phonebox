@@ -34,8 +34,9 @@ export const ROWS = 6;
 export const $ = (id) => document.getElementById(id);
 // The native bridge (window.Android) is in every frame, sandboxed widgets included, so each call carries a key that only
 // the panel's own frames receive (MainActivity.bridgeKey). This wrapper adds it.
-const BRIDGE = ['battery', 'buzz', 'haptic', 'is24Hour', 'pcs', 'selectPc', 'forgetPc', 'setBrightness', 'setHomeScreen', 'setOrientation',
-  'setPinned', 'setVolumeKeys', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening', 'trackpad'];
+const BRIDGE = ['battery', 'buzz', 'notificationTone', 'haptic', 'is24Hour', 'pcs', 'selectPc', 'forgetPc', 'setBrightness', 'setHomeScreen', 'setOrientation',
+  'setPinned', 'setVolumeKeys', 'transport', 'sensors', 'version', 'canListen', 'listen', 'stopListening', 'cancelListening',
+  'trackpad', 'codexVoiceStart', 'codexVoiceStop', 'desktopAudioStart', 'desktopAudioStop'];
 export const bridge = typeof Android === 'undefined' ? null : Object.fromEntries(BRIDGE.filter((m) => typeof Android[m] === 'function')
   .map((m) => [m, (...args) => Android[m](window.__phoneboxKey || '', ...args)]));
 // Live preview inside the agent's layout editor: the layout comes from the editor (unsaved), not from the agent.
@@ -883,6 +884,7 @@ export function handleNotify(d) {
   if (d.wake && nightOn) { wakeUntil = Date.now() + 30_000; setNight(false); }
   undim();
   toast(d.text || '', level, d.title || '', d.seconds || 5);
+  try { if (!nightOn) bridge?.notificationTone?.(); } catch (_) {}
   if (d.vibrate !== false) buzz(level === 'err' ? '0,90,90,90,90,160' : '0,70,110,70');
   D.notes.unshift({ title: d.title || '', text: d.text || '', level: d.level || 'info', at: Date.now() });
   D.notes = D.notes.slice(0, 30);

@@ -479,8 +479,8 @@ class AgentLink(private val context: Context) {
         return problem
     }
 
-    private fun pinnedFactory(pin: String): SSLSocketFactory {
-        val tm = object : X509TrustManager {
+    internal fun pinnedTrustManager(pin: String): X509TrustManager =
+        object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = throw CertificateException()
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
                 val fp = MessageDigest.getInstance("SHA-256").digest(chain[0].encoded).joinToString("") { "%02x".format(it) }
@@ -488,6 +488,8 @@ class AgentLink(private val context: Context) {
             }
             override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
         }
+    private fun pinnedFactory(pin: String): SSLSocketFactory {
+        val tm = pinnedTrustManager(pin)
         return SSLContext.getInstance("TLS").apply { init(null, arrayOf(tm), SecureRandom()) }.socketFactory
     }
 

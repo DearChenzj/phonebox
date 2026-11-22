@@ -173,6 +173,39 @@ hand: *Install hook* writes to `~/.claude/settings.json` only. WorkBuddy keeps i
 card takes the project name from the workspace name WorkBuddy stores
 (`~/.workbuddy/workspace-display-names.json`) instead of the folder name.
 
+## Use the Android phone as the Mac microphone and speaker
+
+On macOS 14.2 or later, install [BlackHole 2ch and BlackHole 16ch](https://github.com/ExistentialAudio/BlackHole).
+Build the audio helper from the repository root and set its absolute path in the PhoneBox agent's environment.
+
+```sh
+swiftc -O agent/PhoneBox.Agent/Unix/desktop-audio.swift -o ./PhoneBoxDesktopAudio
+export PHONEBOX_DESKTOP_AUDIO_EXECUTABLE="$PWD/PhoneBoxDesktopAudio"
+./PhoneBoxDesktopAudio --check 'BlackHole 2ch' 'BlackHole 16ch'
+```
+
+Restart the agent. Set **BlackHole 2ch** as the microphone and **BlackHole 16ch** as the speaker in macOS Sound
+settings. Open the desired chat in Codex on the Mac. On the Wi-Fi-paired Android phone, tap **开始 Codex 语音**,
+allow microphone access on first use, and keep PhoneBox in the foreground. The agent sends the default
+Control+Shift+V voice shortcut to the desktop app once the phone is connected. Allow PhoneBoxAgent in macOS
+Accessibility if prompted. PhoneBox activates the phone audio while the selected virtual microphone is in use.
+
+The agent supports different names through `PHONEBOX_DESKTOP_AUDIO_MIC` and `PHONEBOX_DESKTOP_AUDIO_SPEAKER`.
+Assign a distinct virtual device to each direction. Keep these devices dedicated to the audio bridge.
+
+## Standalone Codex Voice
+
+The Android panel can start a two-way Codex voice call over Wi-Fi. A signed-in Codex CLI with the experimental
+App Server voice methods is required. Set `PHONEBOX_CODEX_EXECUTABLE` to the absolute path of the Codex executable
+and `PHONEBOX_CODEX_WORKSPACE` to an existing project directory before starting the desktop agent.
+
+On the phone, tap **Codex Voice** in the lower-right corner. Choose a saved conversation from the signed-in account
+or start a temporary one. The voice model receives recent text messages from the conversation you select. Allow
+microphone access, then speak when the call says it is connected. Calls use read-only tool permissions. Finish any
+running task in the selected conversation before calling. A desktop chat can still hold its writer while idle.
+If PhoneBox reports that the chat is in use, choose a different saved conversation. The paired desktop agent
+handles signaling, and WebRTC carries microphone audio and spoken replies.
+
 ## Webhooks
 
 The agent accepts data as well as serving it, so anything that can make an HTTP request can put things on the panel:

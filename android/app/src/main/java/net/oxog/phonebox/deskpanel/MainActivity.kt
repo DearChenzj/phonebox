@@ -1,6 +1,7 @@
 package net.oxog.phonebox.deskpanel
 
 import android.annotation.SuppressLint
+import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.AlertDialog
@@ -14,6 +15,9 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.os.BatteryManager
 import android.os.SystemClock
 import android.os.Bundle
@@ -30,6 +34,7 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.Toast
 import android.webkit.JavascriptInterface
+import android.webkit.PermissionRequest
 import android.webkit.ConsoleMessage
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
@@ -41,6 +46,8 @@ import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
+import java.util.UUID
+import java.util.concurrent.Executors
 
 /**
  * Full-screen desk panel. The UI is plain HTML/JS bundled in assets/www.
@@ -55,7 +62,16 @@ class MainActivity : Activity(), SensorEventListener {
     private var destroyed = false
     private val dictation by lazy { Dictation(this) { script -> if (!destroyed) web.evaluateJavascript(script, null) } }
     private lateinit var link: AgentLink
+    private lateinit var desktopAudio: DesktopAudio
+    private var armDesktopAudioOnResume = false
+    private var desktopAudioPermissionPending = false
+    private var desktopAudioPlaying = false
     private lateinit var stream: AgentStream
+    private var notificationPlayer: MediaPlayer? = null
+    private var voicePermission: PermissionRequest? = null
+    private val voiceSignaling = Executors.newSingleThreadExecutor()
+    private val voiceLock = Any()
+    private var voiceCallId: String? = null
     @Volatile private var resumed = false
     @Volatile private var volumeKeysFlipPages = true
     private val sensors by lazy { getSystemService(Context.SENSOR_SERVICE) as SensorManager? }
@@ -74,6 +90,7 @@ class MainActivity : Activity(), SensorEventListener {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         link = AgentLink(this)
+        desktopAudio = DesktopAudio(link, ::desktopAudioStatus)
         stream = AgentStream(link) { event, data ->
             val js = "window.onAgentStream && window.onAgentStream(${JSONObject.quote(event)}, ${JSONObject.quote(data)})"
             runOnUiThread { if (!destroyed) web.evaluateJavascript(js, null) }
@@ -93,6 +110,29 @@ class MainActivity : Activity(), SensorEventListener {
         web.isVerticalScrollBarEnabled = false
         web.isHorizontalScrollBarEnabled = false
         web.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                // Only the asset origin can record, and only when requesting the microphone.
+                if (request.origin.toString().removeSuffix("/") != "https://$ASSET_HOST" ||
+                    web.url != "https://$ASSET_HOST/assets/www/index.html" ||
+                    !request.resources.contentEquals(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))) {
+                    request.deny()
+                    return
+                }
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                    checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+                } else if (voicePermission == null) {
+                    voicePermission = request
+                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), VOICE_PERMISSION_REQUEST)
+                } else {
+                    request.deny()
+                }
+            }
+
+            override fun onPermissionRequestCanceled(request: PermissionRequest) {
+                if (voicePermission === request) voicePermission = null
+            }
+
             override fun onConsoleMessage(message: ConsoleMessage): Boolean {
                 if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR)
                     Log.e("PhoneBoxWeb", "${message.sourceId()}:${message.lineNumber()} ${message.message()}")
@@ -216,7 +256,7 @@ class MainActivity : Activity(), SensorEventListener {
             KeyEvent.KEYCODE_VOLUME_DOWN -> "next"
             else -> null
         }
-        if (key == null || !volumeKeysFlipPages) return super.dispatchKeyEvent(event)
+        if (key == null || !volumeKeysFlipPages || desktopAudioPlaying) return super.dispatchKeyEvent(event)
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
             web.evaluateJavascript("window.onAndroidKey && window.onAndroidKey('$key')", null)
         return true
@@ -231,6 +271,10 @@ class MainActivity : Activity(), SensorEventListener {
     override fun onResume() {
         super.onResume()
         resumed = true
+        if (armDesktopAudioOnResume) {
+            armDesktopAudioOnResume = false
+            desktopAudio.start()
+        }
         web.onResume()
         stream.start()
         hideSystemUi()
@@ -242,11 +286,27 @@ class MainActivity : Activity(), SensorEventListener {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == Dictation.PERMISSION_REQUEST)
             dictation.onPermission(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+        if (requestCode == DESKTOP_AUDIO_PERMISSION_REQUEST && desktopAudioPermissionPending) {
+            desktopAudioPermissionPending = false
+            if (grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED)
+                desktopAudioStatus("请允许 PhoneBox 使用麦克风。")
+            else if (resumed) desktopAudio.start()
+            else armDesktopAudioOnResume = true
+        }
+        if (requestCode == VOICE_PERMISSION_REQUEST) {
+            val request = voicePermission
+            voicePermission = null
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+                request?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+            else request?.deny()
+        }
     }
 
     override fun onPause() {
         resumed = false
+        if (!desktopAudioPermissionPending) desktopAudio.stop()
         dictation.cancel(0) // the microphone is never left open behind another app or a dark screen
+        if (stopVoiceCall()) web.evaluateJavascript("window.onCodexVoicePause && window.onCodexVoicePause()", null)
         sensors?.unregisterListener(this)
         stream.stop()
         web.onPause()
@@ -256,14 +316,46 @@ class MainActivity : Activity(), SensorEventListener {
     override fun onDestroy() {
         destroyed = true
         resumed = false
+        desktopAudio.stop()
+        voicePermission?.deny()
+        voicePermission = null
+        stopVoiceCall()
+        voiceSignaling.shutdown()
         dictation.cancel(0)
         sensors?.unregisterListener(this)
         stream.stop()
         link.trackpadSocket.close()
         link.close()
+        releaseNotificationPlayer()
         (web.parent as? ViewGroup)?.removeView(web) // a WebView must be detached before destroy()
         web.destroy()
         super.onDestroy()
+    }
+
+    private fun releaseNotificationPlayer() {
+        notificationPlayer?.release()
+        notificationPlayer = null
+    }
+
+    private fun desktopAudioStatus(state: String) {
+        runOnUiThread {
+            if (destroyed) return@runOnUiThread
+            desktopAudioPlaying = resumed && state == "active"
+            volumeControlStream = if (desktopAudioPlaying) AudioManager.STREAM_MUSIC else AudioManager.USE_DEFAULT_STREAM_TYPE
+            web.evaluateJavascript("window.onDesktopAudioStatus && window.onDesktopAudioStatus(${JSONObject.quote(state)})", null)
+        }
+    }
+
+    private fun stopVoiceCall(expected: String? = null): Boolean {
+        synchronized(voiceLock) {
+            val id = voiceCallId ?: return false
+            if (expected != null && id != expected) return false
+            voiceCallId = null
+            voiceSignaling.execute {
+                link.request("POST", "/api/codex-voice/stop?id=$id").body.close()
+            }
+            return true
+        }
     }
 
     /**
@@ -313,6 +405,63 @@ class MainActivity : Activity(), SensorEventListener {
         private val validTrackpadTypes = setOf("move", "click", "rightClick", "mousedown", "mouseup", "scroll", "hscroll")
 
         @JavascriptInterface
+        fun desktopAudioStart(key: String) {
+            if (!ok(key)) return
+            runOnUiThread {
+                if (!resumed || destroyed || desktopAudioPermissionPending) return@runOnUiThread
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                    checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    desktopAudioPermissionPending = true
+                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), DESKTOP_AUDIO_PERMISSION_REQUEST)
+                } else desktopAudio.start()
+            }
+        }
+
+        @JavascriptInterface
+        fun desktopAudioStop(key: String) {
+            if (!ok(key)) return
+            runOnUiThread {
+                armDesktopAudioOnResume = false
+                desktopAudioPermissionPending = false
+                desktopAudio.stop()
+            }
+        }
+
+        @JavascriptInterface
+        fun codexVoiceStart(key: String, id: String, sdp: String, threadId: String, ticket: String): Boolean {
+            if (!ok(key) || !resumed || sdp.length > 24 * 1024 ||
+                runCatching { UUID.fromString(id).toString() }.getOrNull() != id) return false
+            if (threadId.isNotEmpty() && (runCatching { UUID.fromString(threadId).toString() }.getOrNull() != threadId ||
+                ticket.length != 64)) return false
+            synchronized(voiceLock) {
+                if (voiceCallId != null || !resumed) return false
+                voiceCallId = id
+                voiceSignaling.execute {
+                    val offer = JSONObject().put("id", id).put("sdp", sdp)
+                    if (threadId.isNotEmpty()) offer.put("threadId", threadId).put("ticket", ticket)
+                    val (status, payload) = try {
+                        val response = link.request("POST", "/api/codex-voice/start",
+                            offer.toString().toByteArray(Charsets.UTF_8), "application/json")
+                        response.code to response.body.bufferedReader().use { it.readText() }
+                    } catch (_: Exception) {
+                        503 to """{"error":"Could not reach the PhoneBox agent."}"""
+                    }
+                    runOnUiThread {
+                        if (!destroyed) web.evaluateJavascript(
+                            "window.onCodexVoiceAnswer && window.onCodexVoiceAnswer(${JSONObject.quote(id)}, $status, ${JSONObject.quote(payload)})",
+                            null)
+                    }
+                }
+                return true
+            }
+        }
+
+        @JavascriptInterface
+        fun codexVoiceStop(key: String, id: String) {
+            if (ok(key)) stopVoiceCall(id)
+        }
+
+        @JavascriptInterface
         fun trackpad(key: String, type: String, dx: Float, dy: Float, delta: Float) {
             if (!ok(key) || type !in validTrackpadTypes) return
             val cleanDx = if (dx.isFinite()) dx else 0f
@@ -340,6 +489,41 @@ class MainActivity : Activity(), SensorEventListener {
             if (!v.hasVibrator()) return
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) v.vibrate(VibrationEffect.createOneShot(14, VibrationEffect.DEFAULT_AMPLITUDE))
             else @Suppress("DEPRECATION") v.vibrate(14)
+        }
+
+        @JavascriptInterface
+        fun notificationTone(key: String) {
+            if (!ok(key)) return
+            runOnUiThread {
+                if (!resumed || destroyed) return@runOnUiThread
+                val audio = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return@runOnUiThread
+                if (audio.ringerMode != AudioManager.RINGER_MODE_NORMAL) return@runOnUiThread
+                releaseNotificationPlayer()
+                try {
+                    val attributes = AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                    val player = MediaPlayer.create(this@MainActivity, R.raw.notification_tone, attributes, 0)
+                        ?: return@runOnUiThread
+                    notificationPlayer = player
+                    player.setOnCompletionListener {
+                        if (it === notificationPlayer) {
+                            releaseNotificationPlayer()
+                            if (BuildConfig.DEBUG) Log.d("PhoneBoxAudio", "Notification tone completed")
+                        }
+                    }
+                    player.setOnErrorListener { failedPlayer, what, extra ->
+                        if (failedPlayer === notificationPlayer) releaseNotificationPlayer()
+                        Log.w("PhoneBoxAudio", "Notification tone failed ($what, $extra)")
+                        true
+                    }
+                    player.start()
+                } catch (e: RuntimeException) {
+                    releaseNotificationPlayer()
+                    Log.w("PhoneBoxAudio", "Could not play notification tone", e)
+                }
+            }
         }
 
         /** Notification vibration; pattern is a "wait,vibrate,wait,vibrate..." list of milliseconds. */
@@ -430,12 +614,19 @@ class MainActivity : Activity(), SensorEventListener {
             if (!ok(key) || !link.select(id)) return
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                desktopAudio.stop()
                 stream.stop(); if (resumed) stream.start(); web.reload()
             }
         }
 
         @JavascriptInterface
-        fun forgetPc(key: String, id: String) { if (ok(key)) link.forget(id) }
+        fun forgetPc(key: String, id: String) {
+            if (!ok(key)) return
+            runOnUiThread {
+                if (link.activePc()?.id == id) desktopAudio.stop()
+                link.forget(id)
+            }
+        }
 
         /** "landscape" (default), "portrait" or "auto" (follow the phone). */
         @JavascriptInterface
@@ -484,6 +675,8 @@ class MainActivity : Activity(), SensorEventListener {
     }
 
     companion object {
+        private const val VOICE_PERMISSION_REQUEST = 9041
+        private const val DESKTOP_AUDIO_PERMISSION_REQUEST = 9042
         private const val ASSET_HOST = "appassets.androidplatform.net"
         private val NO_STORE = mapOf("Cache-Control" to "no-store")
         private const val PANEL_HEADER = "X-PhoneBox-Panel"

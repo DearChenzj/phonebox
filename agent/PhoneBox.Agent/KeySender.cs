@@ -318,6 +318,27 @@ public static class KeySender
             throw new InvalidOperationException(AccessibilityHint);
     }
 
+    internal static string? StartMacCodexVoice()
+    {
+        var result = Sh.RunWithTimeout(5000, "osascript", "-e", """
+            tell application "System Events"
+                set matches to every application process whose bundle identifier is "com.openai.codex"
+                if (count of matches) is 0 then return "closed"
+                set targetApp to item 1 of matches
+                set frontmost of targetApp to true
+                repeat 20 times
+                    if frontmost of targetApp then
+                        keystroke "v" using {control down, shift down}
+                        return "sent"
+                    end if
+                    delay 0.05
+                end repeat
+                return "inactive"
+            end tell
+            """)?.Trim();
+        return result == "sent" ? null : result == "closed" ? "closed" : "permission";
+    }
+
     private static readonly object UnixMoveLock = new();
     private static readonly object UnixSendLock = new();
     private static int _unixPendingDx;

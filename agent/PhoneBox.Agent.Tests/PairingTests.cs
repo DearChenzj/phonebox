@@ -122,6 +122,14 @@ public sealed class PairingTests
     {
         var enabled = new LanConfig { Enabled = true, Port = 8766, Token = "phone-tok", WebhookToken = "hook-tok" };
         Assert.Equal(Lan.LanAccess.Phone, Lan.AuthorizeRequest(enabled, "GET", "/api/state", "", "Bearer phone-tok", null));
+        Assert.Equal(Lan.LanAccess.Phone, Lan.AuthorizeRequest(enabled, "POST", "/api/codex-voice/start", "", "Bearer phone-tok", null));
+        Assert.Equal(Lan.LanAccess.Denied, Lan.AuthorizeRequest(enabled, "POST", "/api/codex-voice/start", "", "Bearer hook-tok", null));
+        Assert.Equal(Lan.LanAccess.Phone, Lan.AuthorizeRequest(enabled, "GET", "/api/codex-voice/threads", "", "Bearer phone-tok", null));
+        Assert.Equal(Lan.LanAccess.Denied, Lan.AuthorizeRequest(enabled, "GET", "/api/codex-voice/threads", "", "Bearer hook-tok", null));
+        Assert.Equal(Lan.LanAccess.Phone, Lan.AuthorizeRequest(enabled, "GET", "/api/desktop-audio", "", "Bearer phone-tok", null));
+        Assert.Equal(Lan.LanAccess.Phone, Lan.AuthorizeRequest(enabled, "GET", "/api/desktop-audio/socket", "", "Bearer phone-tok", null));
+        Assert.Equal(Lan.LanAccess.Denied, Lan.AuthorizeRequest(enabled, "GET", "/api/desktop-audio/socket", "", "Bearer hook-tok", null));
+        Assert.Equal(Lan.LanAccess.Denied, Lan.AuthorizeRequest(enabled, "GET", "/api/desktop-audio/socket", "", null, "phone-tok"));
         Assert.Equal(Lan.LanAccess.Webhook, Lan.AuthorizeRequest(enabled, "POST", "/api/push/ci", "", null, "hook-tok"));
         Assert.Equal(Lan.LanAccess.Denied, Lan.AuthorizeRequest(enabled, "GET", "/api/state", "", "Bearer hook-tok", null));
         Assert.Equal(Lan.LanAccess.PairingClaim, Lan.AuthorizeRequest(enabled, "POST", "/api/pair/claim", "", null, null));
