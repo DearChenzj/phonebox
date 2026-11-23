@@ -17,6 +17,15 @@
   instead of an emoji and a text X, so they look the same on older phones (#252,
   [Seyamalam](https://github.com/Seyamalam)).
 
+## 0.10.0 — 2026-11-23
+
+First release of the [DearChenzj PhoneBox fork](https://github.com/DearChenzj/phonebox), based on [Ersin KOÇ’s PhoneBox](https://github.com/ersinkoc/phonebox).
+
+- Added the animated robot home with tap-to-speak Chinese commands and notification expressions and speech.
+- Added full-screen trackpad control for macOS, with pointer movement, tapping, dragging and two-finger scrolling.
+- Trackpad gestures use a WebSocket over USB or paired Wi-Fi, with HTTP fallback.
+- Published an Android APK and a self-contained macOS Apple silicon agent.
+
 ## 0.9.21 — 2026-11-18
 
 Security and reliability fixes from an audit of the agent, the panel, the phone app and the installers, Big buttons

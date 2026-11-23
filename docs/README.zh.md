@@ -23,22 +23,24 @@
 
 <p align="center">
   <a href="https://ersinkoc.github.io/phonebox/"><b>在线演示</b></a> ·
-  <a href="https://github.com/ersinkoc/phonebox/releases/latest"><b>下载</b></a> ·
+  <a href="https://github.com/DearChenzj/phonebox/releases/latest"><b>下载</b></a> ·
   <a href="#快速开始"><b>快速开始</b></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ersinkoc/phonebox/actions/workflows/build.yml"><img src="https://github.com/ersinkoc/phonebox/actions/workflows/build.yml/badge.svg" alt="构建状态"></a>
-  <a href="https://github.com/ersinkoc/phonebox/releases/latest"><img src="https://img.shields.io/github/v/release/ersinkoc/phonebox?label=release" alt="最新版本"></a>
+  <a href="https://github.com/DearChenzj/phonebox/actions/workflows/build.yml"><img src="https://github.com/DearChenzj/phonebox/actions/workflows/build.yml/badge.svg" alt="构建状态"></a>
+  <a href="https://github.com/DearChenzj/phonebox/releases/latest"><img src="https://img.shields.io/github/v/release/DearChenzj/phonebox?label=release" alt="最新版本"></a>
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux%20%C2%B7%20macOS-.NET%2010-512bd4" alt="Windows, Linux, macOS; .NET 10">
   <img src="https://img.shields.io/badge/Android-5%2B-3ddc84" alt="Android 5+">
   <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT 许可证"></a>
 </p>
 
-<p align="center"><img src="hero-0.6.png" width="900" alt="三部手机上的 PhoneBox 示例"><br>
-<sub>使用演示数据的示例布局。</sub></p>
+<p align="center"><img src="robot-desktop.gif" width="780" alt="PhoneBox 桌面机器人演示：眨眼、聆听和通知表情"><br>
+<sub>机器人首页动效，演示中的语音和通知由测试事件触发。</sub></p>
 
-PhoneBox 将全屏 **Android 应用**与轻量级**桌面代理**配对。通过浏览器可视化编辑器打造专属面板：**123 个小组件**、**30 个模板**、多页面以及实时预览。
+本仓库基于 [Ersin KOÇ 的 PhoneBox](https://github.com/ersinkoc/phonebox)，沿用 [MIT 许可证](../LICENSE)。此分支增加了机器人首页、中文语音指令和 macOS 触控板。
+
+PhoneBox 将全屏 **Android 应用**与轻量级**桌面代理**配对。通过浏览器可视化编辑器打造专属面板：**124 个小组件**、**31 个模板**、多页面以及实时预览。
 
 ## 主要功能
 
@@ -53,6 +55,10 @@ PhoneBox 将全屏 **Android 应用**与轻量级**桌面代理**配对。通过
 ## 快速开始
 
 ### 1. 安装桌面代理
+
+**Apple 芯片 Mac（含 Mac mini）**：从[本仓库的 Release](https://github.com/DearChenzj/phonebox/releases/latest)下载 Mac 安装包并解压。打开终端，进入解压后的文件夹，运行 `./PhoneBoxAgent`，再访问 <http://127.0.0.1:8765>。安卓 APK 也在同一个 Release。USB 连接需要 ADB，可用 `brew install android-platform-tools` 安装。
+
+下面是上游项目的 Windows、Linux 与通用安装脚本。
 
 **Windows 10/11 x64**（PowerShell）：
 
@@ -72,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/ersinkoc/phonebox/main/setup.sh | b
 
 | USB | 仅 Wi-Fi |
 |---|---|
-| 开启 **开发者选项 → USB 调试**并连接数据线。 | 从[最新发布](https://github.com/ersinkoc/phonebox/releases/latest)安装 APK，开启 **Wi-Fi & Tailscale** 并扫描配对二维码。 |
+| 开启 **开发者选项 → USB 调试**并连接数据线。 | 从[最新发布](https://github.com/DearChenzj/phonebox/releases/latest)安装 APK，开启 **Wi-Fi & Tailscale** 并扫描配对二维码。 |
 
 ### 3. 自定义面板
 

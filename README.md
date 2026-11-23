@@ -23,20 +23,22 @@ Windows, Linux and macOS. No root, PhoneBox account or cloud service required.</
 
 <p align="center">
   <a href="https://ersinkoc.github.io/phonebox/"><b>Try the live demo</b></a> ·
-  <a href="https://github.com/ersinkoc/phonebox/releases/latest"><b>Download</b></a> ·
+  <a href="https://github.com/DearChenzj/phonebox/releases/latest"><b>Download</b></a> ·
   <a href="#quick-start"><b>Quick start</b></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ersinkoc/phonebox/actions/workflows/build.yml"><img src="https://github.com/ersinkoc/phonebox/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
-  <a href="https://github.com/ersinkoc/phonebox/releases/latest"><img src="https://img.shields.io/github/v/release/ersinkoc/phonebox?label=release" alt="Latest release"></a>
+  <a href="https://github.com/DearChenzj/phonebox/actions/workflows/build.yml"><img src="https://github.com/DearChenzj/phonebox/actions/workflows/build.yml/badge.svg" alt="Build status"></a>
+  <a href="https://github.com/DearChenzj/phonebox/releases/latest"><img src="https://img.shields.io/github/v/release/DearChenzj/phonebox?label=release" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux%20%C2%B7%20macOS-.NET%2010-512bd4" alt="Windows, Linux, macOS; .NET 10">
   <img src="https://img.shields.io/badge/Android-5%2B-3ddc84" alt="Android 5+">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
 </p>
 
-<p align="center"><img src="docs/hero-0.6.png" width="900" alt="PhoneBox on three phones showing automation, home and planner pages"><br>
-<sub>Example layouts with demo data.</sub></p>
+<p align="center"><img src="docs/robot-desktop.gif" width="780" alt="PhoneBox robot desktop blinking, listening, and reacting to notifications"><br>
+<sub>Robot home in action, with simulated voice and notification events.</sub></p>
+
+This fork is based on [Ersin KOÇ’s PhoneBox](https://github.com/ersinkoc/phonebox) and retains the [MIT license](LICENSE). It adds the robot home, Chinese voice commands, and a macOS trackpad.
 
 PhoneBox pairs a full-screen **Android app** with a small **desktop agent**. Build your panel in a browser-based
 visual editor: **124 widgets**, **31 templates**, multiple pages and a live preview. Connect several phones with
@@ -56,15 +58,16 @@ Tap an AI session for its model, timing and token details. Opt in to Claude Code
 **Allow** or **Deny** from the phone. Optional [CodexBar integration](docs/GUIDE.md#widgets) adds quota providers
 and a cost overview.
 
-<p align="center"><a href="docs/tour-0.6.mp4"><img src="docs/tour-0.6.gif" width="780" alt="PhoneBox tour showing notifications, a Claude Code permission prompt and automatic page switching"></a><br>
-<sub>A tour with demo data: notifications, permission prompts and automatic page switching. <a href="docs/tour-0.6.mp4">Watch the MP4</a></sub></p>
-
 ## Quick start
 
 You need an **Android 5+ phone** (Android 6 or later recommended) and a supported computer. USB uses a data cable and USB debugging; Wi-Fi pairing
 works without either. Release agents include .NET, so you do not need to install the runtime.
 
 ### 1. Install the desktop agent
+
+**Apple silicon Mac (including Mac mini):** Download the macOS ZIP from [this fork’s releases](https://github.com/DearChenzj/phonebox/releases/latest) and unzip it. In Terminal, change into the extracted folder, run `./PhoneBoxAgent`, and open <http://127.0.0.1:8765>. The Android APK is on the same release page. For USB, install ADB with `brew install android-platform-tools`.
+
+The commands below install the upstream version.
 
 **Windows 10/11 x64** — paste into a normal PowerShell window:
 
@@ -93,7 +96,7 @@ The [installation guide](docs/SETUP.md) covers options, dependencies, install pa
 
 | USB | Wi-Fi only |
 |---|---|
-| Enable **Developer options → USB debugging**, connect a data cable and accept the phone's authorization prompt. Let setup install the app, or use **Settings → General → Install the phone app**. | Install the APK from the [latest release](https://github.com/ersinkoc/phonebox/releases/latest). Wi-Fi is off by default: open the settings page (tray icon, or `http://127.0.0.1:8765`), turn on **General → Wi-Fi & Tailscale → Let the phone connect without the USB cable**, click **Save**, then **Restart to apply** at the top. Choose **Pair a phone over Wi-Fi**, scan the pairing QR code and confirm the matching check code. |
+| Enable **Developer options → USB debugging**, connect a data cable and accept the phone's authorization prompt. Let setup install the app, or use **Settings → General → Install the phone app**. | Install the APK from the [latest release](https://github.com/DearChenzj/phonebox/releases/latest). Wi-Fi is off by default: open the settings page (tray icon, or `http://127.0.0.1:8765`), turn on **General → Wi-Fi & Tailscale → Let the phone connect without the USB cable**, click **Save**, then **Restart to apply** at the top. Choose **Pair a phone over Wi-Fi**, scan the pairing QR code and confirm the matching check code. |
 | Wakes and opens the panel on connection; supports app updates over adb. | No adb or developer options needed; install app updates manually unless you later configure USB. |
 
 The phone app is not in any app store; it comes only from this repository's releases. It runs on Android 5.0 and
@@ -111,8 +114,7 @@ Swipe, tap the page dots or use the phone's volume keys to move between pages.
 <details>
 <summary><b>Other installation methods</b></summary>
 
-- **Manual download:** unzip the agent for your system from the [release page](https://github.com/ersinkoc/phonebox/releases/latest)
-  and run it. Install the APK on the phone. Checksums and build provenance accompany the release assets.
+- **Manual download:** the [fork release page](https://github.com/DearChenzj/phonebox/releases/latest) provides the Android APK, Apple silicon macOS agent, and SHA-256 checksums. For other desktop platforms, see [upstream releases](https://github.com/ersinkoc/phonebox/releases/latest).
 - **Scoop (Windows):**
 
   ```powershell
