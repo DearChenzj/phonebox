@@ -64,6 +64,7 @@
   font-size: clamp(12px, 3vmin, 20px);
   color: #b6d8e2;
 }
+.robot-actions { display: flex; gap: 8px; }
 .robot-dashboard {
   padding: 7px 14px;
   border: 1px solid #597b87;

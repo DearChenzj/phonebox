@@ -310,6 +310,7 @@ class MainActivity : Activity(), SensorEventListener {
     override fun onPause() {
         resumed = false
         robotSpeech?.stop()
+        link.cancelTrackpad()
         if (!desktopAudioPermissionPending) desktopAudio.stop()
         dictation.cancel(0) // the microphone is never left open behind another app or a dark screen
         if (stopVoiceCall()) web.evaluateJavascript("window.onCodexVoicePause && window.onCodexVoicePause()", null)
@@ -330,7 +331,6 @@ class MainActivity : Activity(), SensorEventListener {
         dictation.cancel(0)
         sensors?.unregisterListener(this)
         stream.stop()
-        link.trackpadSocket.close()
         link.close()
         robotSpeech?.shutdown()
         robotSpeech = null
@@ -522,7 +522,7 @@ class MainActivity : Activity(), SensorEventListener {
 
         @JavascriptInterface
         fun trackpad(key: String, type: String, dx: Float, dy: Float, delta: Float) {
-            if (!ok(key) || type !in validTrackpadTypes) return
+            if (!ok(key) || !resumed || type !in validTrackpadTypes) return
             val cleanDx = if (dx.isFinite()) dx else 0f
             val cleanDy = if (dy.isFinite()) dy else 0f
             val cleanDelta = if (delta.isFinite()) delta else 0f

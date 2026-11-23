@@ -370,8 +370,6 @@ public static class KeySender
 
     private static void UnixMouse(params string[] args)
     {
-        if (OperatingSystem.IsMacOS())
-            throw new PlatformNotSupportedException("The Trackpad widget is not supported on macOS yet.");
         var xdotool = Sh.Which("xdotool");
         if (xdotool is null)
             throw new InvalidOperationException("controlling the mouse needs xdotool (X11)");
@@ -390,6 +388,7 @@ public static class KeySender
     public static void MouseMove(int dx, int dy)
     {
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("move", dx, dy, 0)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Move(dx, dy); return; }
         lock (UnixMoveLock)
         {
             _unixPendingDx += dx;
@@ -411,12 +410,14 @@ public static class KeySender
     public static void MouseClick()
     {
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("click", 0, 0, 0)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Click(); return; }
         UnixAction("click", "1");
     }
 
     public static void MouseRightClick()
     {
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("rightClick", 0, 0, 0)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Click(right: true); return; }
         UnixAction("click", "3");
     }
 
@@ -427,6 +428,7 @@ public static class KeySender
     {
         if (delta == 0) return;
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("scroll", 0, 0, delta)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Scroll(0, delta); return; }
         _unixVScrollAcc += delta;
         var n = Math.Abs(_unixVScrollAcc) / 120;
         if (n == 0) return;
@@ -439,6 +441,7 @@ public static class KeySender
     {
         if (delta == 0) return;
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("hscroll", 0, 0, delta)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Scroll(delta, 0); return; }
         _unixHScrollAcc += delta;
         var n = Math.Abs(_unixHScrollAcc) / 120;
         if (n == 0) return;
@@ -450,12 +453,14 @@ public static class KeySender
     public static void MouseDown()
     {
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("mouseDown", 0, 0, 0)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Down(); return; }
         UnixAction("mousedown", "1");
     }
 
     public static void MouseUp()
     {
         if (TestMouseSink is not null) { TestMouseSink(new MouseCall("mouseUp", 0, 0, 0)); return; }
+        if (OperatingSystem.IsMacOS()) { MacTrackpad.SystemPointer.Up(); return; }
         UnixAction("mouseup", "1");
     }
 #endif

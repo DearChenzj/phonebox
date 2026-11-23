@@ -94,7 +94,9 @@ PhoneBox afterwards so it finds ffmpeg in PATH, or enter ffmpeg's full path in t
 a Camera widget for it is on the phone's screen, at 5 frames a second by default; pick 1 to 10 next to the camera (smoother costs more CPU on the PC and more data to the phone), and expect a short delay. Choose
 **UDP** for a camera that doesn't stream over TCP. At most 4 cameras play at the same time.
 
-**Trackpad** turns a tile into a laptop-style touchpad for the computer with precision acceleration, tap to click, two fingers to right-click, hold to drag, and two-finger scrolling or an optional edge scrollbar. For safety, mouse control is turned off by default: check **Allow controlling the mouse from the phone** in the widget's settings on an enabled page. Supported on Windows (native input) and Linux (with `xdotool` under X11; Wayland sessions block synthetic mouse input); macOS is not supported yet.
+**Trackpad** turns a tile into a laptop-style touchpad for the computer with precision acceleration, tap to click, two fingers to right-click, hold to drag, and two-finger scrolling or an optional edge scrollbar. For safety, mouse control is turned off by default: check **Allow controlling the mouse from the phone** in the widget's settings on an enabled page. Supported on Windows, macOS and Linux (X11 with `xdotool`). On macOS, allow **PhoneBoxAgent** under **System Settings → Privacy & Security → Accessibility**.
+
+For a dedicated page, add the **Full-screen trackpad** template in **Settings → Pages**, enable **Allow controlling the mouse from the phone**, and save. On the Android robot home, tap **触控板** to open it. Slide one finger to move the pointer, tap to click, hold and move to drag, or slide two fingers to scroll. The Android Back button returns home. Trackpad gestures use a WebSocket over USB or paired Wi-Fi, with HTTP as a fallback.
 
 **Smart Stack** combines up to 12 widgets in one slot. Add it from the Layout category, then drag widgets into it or
 use its picker. Reorder cards, open their settings, or disable individual cards. Tap the dots or swipe vertically to

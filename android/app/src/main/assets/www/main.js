@@ -1048,6 +1048,12 @@ let lastHour12 = null;
 
 export const isPortrait = () => window.innerHeight > window.innerWidth * 1.05;
 
+export function isFullTrackpadPage(page) {
+  const [widget] = page.widgets;
+  return page.widgets.length === 1 && widget.type === 'trackpad'
+    && widget.x === 0 && widget.y === 0 && widget.w === COLS && widget.h === ROWS;
+}
+
 // Portrait: the same widgets packed into a 6-column grid in reading order. Their sizes in cells stay the same
 // (portrait cells are about as square as landscape ones); wider widgets shrink to 6 columns and the rows grow to fit.
 export function portraitLayout(widgets) {
@@ -1082,7 +1088,7 @@ export function buildLayout() {
   pages.forEach((p, pi) => {
     const grid = h('div', 'grid');
     const pageAppearance = PhoneBoxAppearance.resolve(cfg.display?.appearance, p.appearance);
-    const pl = portrait && p !== ROBOT_PAGE ? portraitLayout(p.widgets) : null;
+    const pl = portrait && p !== ROBOT_PAGE && !isFullTrackpadPage(p) ? portraitLayout(p.widgets) : null;
     if (pl) { grid.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))'; grid.style.gridTemplateRows = `repeat(${pl.rows}, minmax(0, 1fr))`; }
     for (const w of p.widgets) {
       const def = W[w.type];

@@ -1,4 +1,4 @@
-import { API, PANEL_HEADERS, api, applyState, D, evSeq, h, en, haptic, toast, store, t } from '../main.js';
+import { API, PANEL_HEADERS, PREVIEW, api, bridge, applyState, D, evSeq, h, en, haptic, toast, store, t } from '../main.js';
 import { W } from '../registry.js';
 
 let cached = null, at = 0, epoch = 0, pending = null;
@@ -728,7 +728,7 @@ W.trackpad = {
   needs: [],
   create(box, { o }) {
     box.classList.add('control-deck');
-    const controlEnabled = Boolean(o.control);
+    const controlEnabled = o.control === true && !PREVIEW;
     const sensitivity = Number(o.sensitivity) || 1.0;
     const acceleration = o.acceleration !== false;
     const scrollSpeed = Number(o.scrollSpeed) || 1.0;

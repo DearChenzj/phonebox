@@ -1,4 +1,4 @@
-import { bridge, curPage, goPage, h, haptic, pages } from '../main.js';
+import { bridge, curPage, goPage, h, haptic, isFullTrackpadPage, pages } from '../main.js';
 import { W } from '../registry.js';
 import { speechSessions } from '../speech-sessions.js';
 
@@ -34,7 +34,15 @@ W['robot-face'] = {
     status.setAttribute('role', 'status');
     const dashboard = h('button', 'robot-dashboard', '仪表盘');
     dashboard.type = 'button';
-    box.append(face, status, dashboard);
+    const actions = h('div', 'robot-actions', dashboard);
+    const trackpadIndex = pages.findIndex(p => isFullTrackpadPage(p) && p.widgets[0].options?.control === true);
+    if (trackpadIndex >= 0) {
+      const trackpad = h('button', 'robot-dashboard', '触控板');
+      trackpad.type = 'button';
+      trackpad.onclick = () => { cancel(); goPage(trackpadIndex, true); };
+      actions.append(trackpad);
+    }
+    box.append(face, status, actions);
 
     let rest = 'idle';
     let session = 0;
